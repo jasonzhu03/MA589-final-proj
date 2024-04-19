@@ -1,0 +1,64 @@
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+wine_data = pd.read_csv("/Users/ylance/Downloads/wine_data.csv")
+wine_data.head()
+
+# Features are selected based on their correlations and potential importance
+selected_features = ['Alcohol', 'MalicAcid', 'TotalPhenols', 'Flavanoids', 
+                     'ColorIntensity', 'Hue', 'OD280_OD315', 'Proline']
+
+plt.figure(figsize=(15, 12))
+for i, feature in enumerate(selected_features, 1):
+    plt.subplot(3, 3, i)
+    sns.boxplot(x='Class', y=feature, data=wine_data)
+    plt.title(f'Distribution of {feature} by Wine Class')
+
+plt.tight_layout()
+plt.show()
+
+plt.figure(figsize=(15, 10))
+# Plot a heatmap of correlations
+sns.heatmap(wine_data.corr(), annot=True, fmt=".2f", cmap="coolwarm")
+plt.title('Correlation Matrix of Wine Features')
+plt.show()
+
+from sklearn.preprocessing import StandardScaler
+from sklearn.cluster import KMeans
+from sklearn.metrics import silhouette_score
+
+# Selecting the features for clustering
+features_for_clustering = ['Alcohol', 'MalicAcid', 'TotalPhenols', 'Flavanoids', 
+                           'ColorIntensity', 'Hue', 'OD280_OD315', 'Proline']
+
+X = wine_data[features_for_clustering]
+
+# Standardizing the features
+scaler = StandardScaler()
+X_scaled = scaler.fit_transform(X)
+
+# We use the number of classes in the dataset as the number of clusters for K-Means
+n_clusters = wine_data['Class'].nunique()
+kmeans = KMeans(n_clusters=n_clusters, random_state=0)
+kmeans_labels = kmeans.fit_predict(X_scaled)
+
+# Evaluating K-Means clustering using Silhouette Score
+silhouette_kmeans = silhouette_score(X_scaled, kmeans_labels)
+
+print(n_clusters, silhouette_kmeans)
+
+
+# Creating a DataFrame to store cluster labels
+wine_data['ClusterLabel'] = pd.Series(kmeans_labels).astype(str)
+wine_data = pd.concat([wine_data.reset_index(drop=True), wine_data['ClusterLabel']], axis=1)
+
+print(wine_data.head())
+
+# Plotting the correlation matrix with cluster labels added as color
+### Have to add corr_matrix as argument to plot
+#sns.heatmap(corr_matrix, annot=True, cmap='viridis')
+#plt.xticks(rotation=45)
+#plt.yticks(rotation=0)
+#plt.show()  
+
