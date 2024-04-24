@@ -104,7 +104,46 @@ NEXT STEPS:
 - What can be improve next time? What we did well?
 - Conclusion and learnings, 
 
+```{r k-means}
+# Import required libraries 
+library(stats)
+library(ggplot2)
+library(gridExtra)
 
+selected_features <- df_selected_features[, -1] # Exclude the 'Class' column
+
+# Perform K-Means clustering with 3 clusters
+kmeans_model <- kmeans(selected_features, centers = 3)
+
+# View the cluster centers
+print(kmeans_model$centers)
+
+# View the cluster assignments for each data point
+print(kmeans_model$cluster)
+
+# Assess the quality of clustering (e.g., within-cluster sum of squares)
+cat("\nTotal Within Sum of Squares (WithinSS):\n")
+print(kmeans_model$tot.withinss)
+
+# Visualize the clustering results
+# Scatterplot of the first two features colored by cluster (arbitrary)
+p1 <- ggplot(selected_features, aes(x = Alcohol, y = Hue, color = factor(kmeans_model$cluster))) + geom_point() + labs(title = "K-Means Clustering of Wine Data", x = "Alcohol", y = "Hue", color = "Cluster") + theme_minimal()
+
+p2 <- p1 + 
+  geom_point(data = as.data.frame(kmeans_model$centers), aes(x = Alcohol, y = Hue), color = "black", size = 3, shape = 4)
+
+# Boxplot of each feature by cluster
+boxplot_data <- cbind(selected_features, Cluster = factor(kmeans_model$cluster))
+melted_boxplot_data <- reshape2::melt(boxplot_data, id.vars = "Cluster")
+
+p3 <- ggplot(melted_boxplot_data, aes(x = variable, y = value, fill = Cluster)) +
+  geom_boxplot() +
+  labs(title = "Boxplot of Features by Cluster", x = "Feature", y = "Value", fill = "Cluster") +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+
+grid.arrange(p1, p2, p3, ncol = 2, top = "K-Means Clustering Analysis")
+```
 
 
 

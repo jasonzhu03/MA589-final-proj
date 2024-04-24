@@ -78,6 +78,8 @@ head(df)
 
 ## Exploratory Data Analysis
 
+    ## Warning: package 'readr' was built under R version 4.3.2
+
     ## 
     ## Attaching package: 'dplyr'
 
@@ -89,11 +91,19 @@ head(df)
     ## 
     ##     intersect, setdiff, setequal, union
 
+    ## Warning: package 'ggplot2' was built under R version 4.3.2
+
+    ## Warning: package 'GGally' was built under R version 4.3.2
+
     ## Registered S3 method overwritten by 'GGally':
     ##   method from   
     ##   +.gg   ggplot2
 
+    ## Warning: package 'corrplot' was built under R version 4.3.3
+
     ## corrplot 0.92 loaded
+
+    ## Warning: package 'gplots' was built under R version 4.3.3
 
     ## 
     ## Attaching package: 'gplots'
@@ -101,6 +111,8 @@ head(df)
     ## The following object is masked from 'package:stats':
     ## 
     ##     lowess
+
+    ## Warning: package 'reshape2' was built under R version 4.3.3
 
 ``` r
 sum(is.na(df))
@@ -184,3 +196,82 @@ algorithm, show metrics and visualization, compare silhouette score or
 other metrics. - Comparison of result, which algorithm did better in
 what sense, compare the metrics and discuss - What can be improve next
 time? What we did well? - Conclusion and learnings,
+
+``` r
+# Import required libraries 
+library(stats)
+library(ggplot2)
+library(gridExtra)
+```
+
+    ## Warning: package 'gridExtra' was built under R version 4.3.3
+
+    ## 
+    ## Attaching package: 'gridExtra'
+
+    ## The following object is masked from 'package:dplyr':
+    ## 
+    ##     combine
+
+``` r
+selected_features <- df_selected_features[, -1] # Exclude the 'Class' column
+
+# Perform K-Means clustering with 3 clusters
+kmeans_model <- kmeans(selected_features, centers = 3)
+
+# View the cluster centers
+print(kmeans_model$centers)
+```
+
+    ##    Alcohol       Hue TotalPhenols ColorIntensity
+    ## 1 13.46787 0.9924000     2.504400       5.269067
+    ## 2 13.37229 0.7208571     2.037714       8.794571
+    ## 3 12.29397 1.0406765     2.196765       2.902206
+
+``` r
+# View the cluster assignments for each data point
+print(kmeans_model$cluster)
+```
+
+    ##   [1] 1 1 1 2 1 1 1 1 1 2 1 1 1 1 2 2 1 1 2 1 1 1 1 3 3 3 1 1 1 1 1 1 1 1 1 1 1
+    ##  [38] 1 3 1 1 1 1 1 1 1 1 1 1 2 2 1 1 1 1 1 1 1 1 3 3 1 1 1 3 1 1 1 3 3 3 3 3 3
+    ##  [75] 3 3 1 3 3 3 3 3 3 1 3 3 3 3 3 3 3 3 3 3 3 3 3 3 1 3 3 3 3 3 3 3 3 3 3 3 3
+    ## [112] 3 3 3 3 3 3 3 3 3 3 1 3 3 3 3 3 3 3 3 3 1 1 1 1 2 3 1 1 1 1 1 1 1 2 3 1 2
+    ## [149] 2 2 2 2 2 2 2 2 2 2 2 2 2 1 1 1 2 1 2 2 2 2 1 2 2 2 2 2 2 2
+
+``` r
+# Assess the quality of clustering (e.g., within-cluster sum of squares)
+cat("\nTotal Within Sum of Squares (WithinSS):\n")
+```
+
+    ## 
+    ## Total Within Sum of Squares (WithinSS):
+
+``` r
+print(kmeans_model$tot.withinss)
+```
+
+    ## [1] 274.5233
+
+``` r
+# Visualize the clustering results
+# Scatterplot of the first two features colored by cluster (arbitrary)
+p1 <- ggplot(selected_features, aes(x = Alcohol, y = Hue, color = factor(kmeans_model$cluster))) + geom_point() + labs(title = "K-Means Clustering of Wine Data", x = "Alcohol", y = "Hue", color = "Cluster") + theme_minimal()
+
+p2 <- p1 + 
+  geom_point(data = as.data.frame(kmeans_model$centers), aes(x = Alcohol, y = Hue), color = "black", size = 3, shape = 4)
+
+# Boxplot of each feature by cluster
+boxplot_data <- cbind(selected_features, Cluster = factor(kmeans_model$cluster))
+melted_boxplot_data <- reshape2::melt(boxplot_data, id.vars = "Cluster")
+
+p3 <- ggplot(melted_boxplot_data, aes(x = variable, y = value, fill = Cluster)) +
+  geom_boxplot() +
+  labs(title = "Boxplot of Features by Cluster", x = "Feature", y = "Value", fill = "Cluster") +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+
+grid.arrange(p1, p2, p3, ncol = 2, top = "K-Means Clustering Analysis")
+```
+
+![](wine_EM_Report_files/figure-gfm/k-means-1.png)<!-- -->
