@@ -78,8 +78,6 @@ head(df)
 
 ## Exploratory Data Analysis
 
-    ## Warning: package 'readr' was built under R version 4.3.2
-
     ## 
     ## Attaching package: 'dplyr'
 
@@ -91,19 +89,11 @@ head(df)
     ## 
     ##     intersect, setdiff, setequal, union
 
-    ## Warning: package 'ggplot2' was built under R version 4.3.2
-
-    ## Warning: package 'GGally' was built under R version 4.3.2
-
     ## Registered S3 method overwritten by 'GGally':
     ##   method from   
     ##   +.gg   ggplot2
 
-    ## Warning: package 'corrplot' was built under R version 4.3.3
-
     ## corrplot 0.92 loaded
-
-    ## Warning: package 'gplots' was built under R version 4.3.3
 
     ## 
     ## Attaching package: 'gplots'
@@ -112,7 +102,15 @@ head(df)
     ## 
     ##     lowess
 
-    ## Warning: package 'reshape2' was built under R version 4.3.3
+    ## 
+    ## Attaching package: 'gridExtra'
+
+    ## The following object is masked from 'package:dplyr':
+    ## 
+    ##     combine
+
+    ## Package 'mclust' version 6.1
+    ## Type 'citation("mclust")' for citing this R package in publications.
 
 ``` r
 sum(is.na(df))
@@ -189,89 +187,153 @@ print(p)
 
 ![](wine_EM_Report_files/figure-gfm/selected-features-boxplot-1.png)<!-- -->
 
-NEXT STEPS: - Modelling (K_means_clustering) as our baseline, add some
-plots and show metrics - Create our own EM algorithm, add the
-mathematics behind it, explain why we did that. Explain our EM
-algorithm, show metrics and visualization, compare silhouette score or
-other metrics. - Comparison of result, which algorithm did better in
-what sense, compare the metrics and discuss - What can be improve next
-time? What we did well? - Conclusion and learnings,
+## Feature Standardization
+
+Standardization is a critical preprocessing step in clustering analysis,
+particularly because most clustering algorithms, such as K-Means are
+based on measuring distances between data points. When features within a
+dataset vary widely in magnitudes, units, and range, algorithms that
+rely on Euclidean distance can be biased towards variables with larger
+scales. By standardizing the data (i.e., scaling each feature to have
+zero mean and unit variance), we ensure that each feature contributes
+equally to the distance computations. This prevents features with larger
+ranges from dominating the decision on how data points are clustered and
+allows the algorithm to identify more meaningful patterns in the data.
+Moreover, standardization can improve the convergence behavior of
+clustering algorithms, leading to more stable and interpretable cluster
+assignments.
 
 ``` r
-# Import required libraries 
-library(stats)
-library(ggplot2)
-library(gridExtra)
+features_to_scale <- df_selected_features[, -1] 
+scaled_features <- scale(features_to_scale)
+df_scaled <- data.frame(Class = df_selected_features$Class, scaled_features)
+summary(df_scaled)
 ```
 
-    ## Warning: package 'gridExtra' was built under R version 4.3.3
-
-    ## 
-    ## Attaching package: 'gridExtra'
-
-    ## The following object is masked from 'package:dplyr':
-    ## 
-    ##     combine
+    ##      Class          Alcohol              Hue            TotalPhenols     
+    ##  Min.   :1.000   Min.   :-2.42739   Min.   :-2.08884   Min.   :-2.10132  
+    ##  1st Qu.:1.000   1st Qu.:-0.78603   1st Qu.:-0.76540   1st Qu.:-0.88298  
+    ##  Median :2.000   Median : 0.06083   Median : 0.03303   Median : 0.09569  
+    ##  Mean   :1.938   Mean   : 0.00000   Mean   : 0.00000   Mean   : 0.00000  
+    ##  3rd Qu.:3.000   3rd Qu.: 0.83378   3rd Qu.: 0.71116   3rd Qu.: 0.80672  
+    ##  Max.   :3.000   Max.   : 2.25341   Max.   : 3.29241   Max.   : 2.53237  
+    ##  ColorIntensity   
+    ##  Min.   :-1.6297  
+    ##  1st Qu.:-0.7929  
+    ##  Median :-0.1588  
+    ##  Mean   : 0.0000  
+    ##  3rd Qu.: 0.4926  
+    ##  Max.   : 3.4258
 
 ``` r
-selected_features <- df_selected_features[, -1] # Exclude the 'Class' column
-
-# Perform K-Means clustering with 3 clusters
-kmeans_model <- kmeans(selected_features, centers = 3)
-
-# View the cluster centers
-print(kmeans_model$centers)
+head(df_scaled)
 ```
 
-    ##    Alcohol       Hue TotalPhenols ColorIntensity
-    ## 1 13.46787 0.9924000     2.504400       5.269067
-    ## 2 13.37229 0.7208571     2.037714       8.794571
-    ## 3 12.29397 1.0406765     2.196765       2.902206
+    ##   Class   Alcohol        Hue TotalPhenols ColorIntensity
+    ## 1     1 1.5143408  0.3611585    0.8067217      0.2510088
+    ## 2     1 0.2455968  0.4049085    0.5670481     -0.2924962
+    ## 3     1 0.1963252  0.3174085    0.8067217      0.2682629
+    ## 4     1 1.6867914 -0.4263410    2.4844372      1.1827317
+    ## 5     1 0.2948684  0.3611585    0.8067217     -0.3183774
+    ## 6     1 1.4773871  0.4049085    1.5576991      0.7298108
+
+## Baseline Algorithm - K Means Clustering
 
 ``` r
-# View the cluster assignments for each data point
-print(kmeans_model$cluster)
+features <- df_scaled[, -1]
+set.seed(589) 
+kmeans_result <- kmeans(features, centers = 3, nstart = 25) 
+
+actual_labels <- df_scaled$Class
+predicted_labels <- kmeans_result$cluster
+ari_value <- adjustedRandIndex(actual_labels, predicted_labels)
+print(paste("Adjusted Rand Index:", ari_value))
 ```
 
-    ##   [1] 1 1 1 2 1 1 1 1 1 2 1 1 1 1 2 2 1 1 2 1 1 1 1 3 3 3 1 1 1 1 1 1 1 1 1 1 1
-    ##  [38] 1 3 1 1 1 1 1 1 1 1 1 1 2 2 1 1 1 1 1 1 1 1 3 3 1 1 1 3 1 1 1 3 3 3 3 3 3
-    ##  [75] 3 3 1 3 3 3 3 3 3 1 3 3 3 3 3 3 3 3 3 3 3 3 3 3 1 3 3 3 3 3 3 3 3 3 3 3 3
-    ## [112] 3 3 3 3 3 3 3 3 3 3 1 3 3 3 3 3 3 3 3 3 1 1 1 1 2 3 1 1 1 1 1 1 1 2 3 1 2
-    ## [149] 2 2 2 2 2 2 2 2 2 2 2 2 2 1 1 1 2 1 2 2 2 2 1 2 2 2 2 2 2 2
+    ## [1] "Adjusted Rand Index: 0.753270037486692"
 
 ``` r
-# Assess the quality of clustering (e.g., within-cluster sum of squares)
-cat("\nTotal Within Sum of Squares (WithinSS):\n")
+sil_widths <- silhouette(predicted_labels, dist(features))
+avg_silhouette_score <- mean(sil_widths[, "sil_width"])
+print(paste("Average Silhouette Score:", avg_silhouette_score))
 ```
 
-    ## 
-    ## Total Within Sum of Squares (WithinSS):
+    ## [1] "Average Silhouette Score: 0.383979047272604"
 
 ``` r
-print(kmeans_model$tot.withinss)
-```
+pca_result <- prcomp(features)
+df_pca <- as.data.frame(pca_result$x)
+df_pca$cluster <- kmeans_result$cluster
+df_pca$class <- actual_labels
 
-    ## [1] 274.5233
 
-``` r
-# Visualize the clustering results
-# Scatterplot of the first two features colored by cluster (arbitrary)
-p1 <- ggplot(selected_features, aes(x = Alcohol, y = Hue, color = factor(kmeans_model$cluster))) + geom_point() + labs(title = "K-Means Clustering of Wine Data", x = "Alcohol", y = "Hue", color = "Cluster") + theme_minimal()
-
-p2 <- p1 + 
-  geom_point(data = as.data.frame(kmeans_model$centers), aes(x = Alcohol, y = Hue), color = "black", size = 3, shape = 4)
-
-# Boxplot of each feature by cluster
-boxplot_data <- cbind(selected_features, Cluster = factor(kmeans_model$cluster))
-melted_boxplot_data <- reshape2::melt(boxplot_data, id.vars = "Cluster")
-
-p3 <- ggplot(melted_boxplot_data, aes(x = variable, y = value, fill = Cluster)) +
-  geom_boxplot() +
-  labs(title = "Boxplot of Features by Cluster", x = "Feature", y = "Value", fill = "Cluster") +
+ggplot(df_pca, aes(x = PC1, y = PC2)) + 
+  geom_point(aes(color = as.factor(class)), size = 3, alpha = 0.6) +
+  geom_point(aes(shape = as.factor(cluster)), size = 3, alpha = 0.6) +
+  stat_ellipse(aes(fill = as.factor(cluster)), geom = "polygon", alpha = 0.2, show.legend = FALSE) +
+  scale_color_manual(values = c("#1b9e77", "#d95f02", "#7570b3")) +
+  scale_shape_manual(values = c(16, 17, 18)) +
+  geom_label_repel(aes(label = ifelse(df_pca$class == df_pca$cluster, as.character(df_pca$class), paste("Class", df_pca$class, "\nCluster", df_pca$cluster))),
+                   box.padding   = 0.35, 
+                   point.padding = 0.5,
+                   segment.color = 'grey50') +
+  labs(title = 'Comparison of Actual Classes and K-Means Clusters (PCA-transformed)',
+       color = "True Class",
+       shape = "K-Means Cluster",
+       x = 'PC1', 
+       y = 'PC2') +
   theme_minimal() +
-  theme(legend.position = "bottom")
-
-grid.arrange(p1, p2, p3, ncol = 2, top = "K-Means Clustering Analysis")
+  theme(legend.position = "right", legend.title = element_blank())
 ```
 
-![](wine_EM_Report_files/figure-gfm/k-means-1.png)<!-- -->
+![](wine_EM_Report_files/figure-gfm/baseline-k-means-clustering-1.png)<!-- -->
+
+### Adjusted Rand Index (ARI)
+
+- **High ARI Score (0.753)**: This score suggests a strong agreement
+  between the clustering assignments and the true classifications of the
+  wines. The ARI, being a measure of the similarity between two data
+  clusterings adjusted for chance, indicates that the clusters generated
+  by the K-Means algorithm align well with the actual, underlying
+  groupings within the wine data. This high score implies that the
+  K-Means algorithm is effective in distinguishing between different
+  types of wine based on their features.
+
+### Average Silhouette Score
+
+- **Lower Average Silhouette Score (0.383)**: While this score is not
+  exceptionally low, it is not particularly high either, suggesting
+  moderate separation between the clusters. In the context of wine, this
+  score implies that while the wines are grouped into distinct
+  categories to some extent, there remains considerable overlap or
+  closeness between these groups. This could be due to the inherent
+  similarities among different types of wines, where distinguishing
+  based on the analyzed features alone does not achieve clear
+  separation.
+
+### Interpretation of Clustering Performance
+
+#### Cluster Distribution and Overlap
+
+The high ARI combined with a lower silhouette score might indicate that
+the true class boundaries are not perfectly separable by the spherical
+clusters assumed by K-Means. This situation could be common in wine data
+where different wine varieties (classes) may share overlapping taste
+profiles, chemical compositions, or production methods.
+
+#### Cluster Density and Size Variance
+
+The variance in cluster densities or sizes can also influence the
+silhouette score. For example, if a particular type of wine forms a very
+dense cluster while others are more spread out, the average distance
+within clusters compared to between clusters may decrease, leading to a
+lower silhouette score.
+
+#### Noise and Outliers
+
+Noise and outliers in wine data, such as unusual wines or misrecorded
+data points, can disproportionately affect the silhouette score more
+than the ARI. This could skew the average distance calculations,
+impacting the clarity of cluster boundaries.
+
+## EM Algorithm - Gaussian Mixture Model
