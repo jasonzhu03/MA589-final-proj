@@ -450,6 +450,48 @@ print(result_test)
     ## $log_likelihood
     ## [1] -351.3548
 
+### Gaussian Mixture Model via Expectation-Maximization Pseudocode
+
+**Input**: `features` (data matrix), `k` (number of clusters),
+`max_iterations`, `tolerance`
+
+**Output**: Cluster `means`, `covariances`, `mixing_coefficients`, and
+final `log_likelihood`
+
+1.  **Initialize**:
+
+    - Set random seed for reproducibility.
+    - Initialize cluster `means` using K-Means.
+    - Initialize `covariances` with small random values to ensure
+      positive definiteness.
+    - Set initial `mixing_coefficients` to uniform distribution (1/k).
+
+2.  **Set initial log likelihood** to negative infinity.
+
+3.  **For each iteration up to `max_iterations`**:
+
+    - **E-Step**:
+      - Calculate `responsibilities` for each cluster using the current
+        Gaussian parameters.
+      - Normalize `responsibilities` across each point to sum to 1.
+    - **M-Step**:
+      - Update `means` for each cluster based on weighted averages of
+        points.
+      - Update `covariances` for each cluster based on weighted outer
+        products of centered data points.
+      - Regularize `covariances` by adding a small constant to the
+        diagonal.
+      - Update `mixing_coefficients` based on the average
+        responsibilities for each cluster.
+    - **Check for Convergence**:
+      - Calculate log likelihood for the current model.
+      - If the change in log likelihood is less than `tolerance`, print
+        iteration number and break.
+    - Update the old log likelihood.
+
+4.  **Return** the cluster `means`, `covariances`,
+    `mixing_coefficients`, and `log_likelihood`.
+
 ## Expectation-Maximization Algorithm for GMM
 
 The Expectation-Maximization (EM) algorithm is a statistical method for
