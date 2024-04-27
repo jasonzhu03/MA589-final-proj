@@ -10,13 +10,13 @@ output: github_document
 
 ## Introduction
 
-Wine, a beverage celebrated for its rich diversity and intricate flavors, serves as a fascinating subject for exploratory data analysis and clustering due to the complex interplay of its attributes. Each variety of wine carries a unique signature, a profile crafted by its chemical makeup, which can be decoded using data analysis. The selection of wine as the focus of our investigation is intentional; it is a perfect blend of art and science, making it an exemplary candidate to apply and illustrate machine learning techniques. By dissecting the constituents of wine through computational lenses, we aspire to demonstrate the potent capabilities of unsupervised learning in pattern recognition and categorization.
+Wine, a beverage celebrated for its rich diversity and intricate flavors, serves as a fascinating subject for exploratory data analysis and clustering due to the complex interplay of its attributes. Each variety of wine carries a unique signature, a profile crafted by its chemical makeup, which can be decoded using data analysis. Wine is a perfect blend of art and science, making it an exemplary candidate to apply and illustrate computational statistics. 
 
 ## Project Overview
 
-The project unfolds methodically, commencing with an exhaustive exploratory data analysis (EDA) to sift through the multitude of features inherent in wine data. This pivotal phase involves a keen examination of the relationships between various chemical properties, facilitated by statistical visualizations to discern the most informative attributes. Such scrutiny allows us to distill the essence of the dataset, cherry-picking the features that capture the essence of wine classes most effectively. Following the EDA, we embark on the preprocessing stage, standardizing the selected features to establish a level playing field, thereby priming the data for clustering. The K-Means algorithm, invoked from an R library, sets the stage as our baseline model. This widely regarded partitioning technique provides a robust starting point to gauge the clusters' cohesion and separation before delving into more sophisticated methods.
+The project starts with an exhaustive exploratory data analysis (EDA) to sift through the multitude of features inherent in wine data. This pivotal phase involves a keen examination of the relationships between various chemical properties, facilitated by statistical visualizations to discern the most informative attributes. This allows us to distill the essence of the dataset, cherry-picking the features that capture the essence of wine classes most effectively. Following the EDA, we embark on the preprocessing stage, standardizing the selected features to establish a level playing field, thereby priming the data for clustering. The K-Means algorithm, invoked from an R library, sets the stage as our baseline model. This widely regarded partitioning technique provides a robust starting point to gauge the clusters' cohesion and separation before delving into other methods.
 
-As the next step in our analytical journey, we put forth our custom implementation of the Expectation Maximization (EM) algorithm. This self-crafted algorithm, grounded in probability theory and linear algebra, serves as a testament to our understanding of the underlying statistical framework. The rigor of our EM algorithm will be evaluated against the baseline model through a suite of metrics. These comparative metrics are meticulously chosen not only to quantify the performance of each model but also to illuminate the nuances between the baseline K-Means clustering and our probabilistic EM approach. Through this meticulous comparative analysis, we aim to uncover the subtleties and strengths each method brings to the art of unsupervised learning in the context of wine categorization.
+As the next step in our analytical journey, we put forth our custom implementation of the Expectation Maximization (EM) algorithm. This self-crafted algorithm, grounded in probability theory and linear algebra, serves as a testament to our understanding of the underlying statistical framework. The rigor of our EM algorithm will be evaluated against the baseline model through a suite of metrics. These comparative metrics are meticulously chosen not only to quantify the performance of each model but also to illuminate the nuances between the baseline K-Means clustering and our probabilistic EM approach. Through this meticulous comparative analysis, we aim to uncover the subtleties and strengths each method brings to the art of unsupervised learning in the context of wine categorization. The goal of this project is to create and test our own EM-GMM model and to see the differences in terms of result and difficulty.
 
 ```{r cars}
 df <- read.csv('data/wine_data.csv')
@@ -40,7 +40,9 @@ library(cluster)  # For silhouette
 library(fpc)      # For Davies-Bouldin Index
 library(mclust) 
 library(ggrepel)    # For better label placement
-library(ggforce)    # For ellipses
+library(ggforce) 
+library(mvtnorm)
+# For ellipses
 ```
 
 ```{r Checking-Null-Observations}
@@ -181,7 +183,7 @@ Noise and outliers in wine data, such as unusual wines or misrecorded data point
 
 ## EM Algorithm - Gaussian Mixture Model
 
-```{r EM_GMM_MODEL}
+```{r EM_GMM_MODEL, warning=FALSE}
 # EM Algorithm Function
 EM_GMM <- function(features, k, max_iterations = 100, tolerance = 1e-6) {
   n <- nrow(features)
@@ -222,13 +224,10 @@ EM_GMM <- function(features, k, max_iterations = 100, tolerance = 1e-6) {
     log_likelihood_old = log_likelihood_new
   }
   
-  # Return the final model parameters
   list(means = means, covariances = covariances, mixing_coefficients = mixing_coefficients)
 }
 
-# Example Usage
-features <- as.matrix(df_scaled[, -ncol(df_scaled)])  # Your data here
-features
+features <- as.matrix(df_scaled[, -ncol(df_scaled)])
 result <- EM_GMM(features, k = 3)
 print(result)
 ```
@@ -292,3 +291,37 @@ $$
 $$
 
 The log-likelihood is computed at each iteration and the convergence is checked based on the difference in log-likelihood between consecutive iterations.
+
+### EM-GMM Result Interpretation
+- The `means` represent the centroids of the Gaussian Distributions, assumed for each 3 clusters we have. For example, the first cluster has negative values for alcohol, but positive values for `Hue` and `TotalPhenols`. So this suggests that wines in this cluster tend to have lower alcohol levels but higher hue and total phenols. 
+- The `covariances` matrices represent the shape of the cluster in the feature space. Unlike K-Means which assumes spherical clusters, EM allows for elliptical shapes. For example, the high covariances, 11.15 and 17.4 implies that data points are spread out along these features. 
+- The `mixing_coefficients` represent the relative sizes of each cluster (In terms of the probability of a point belonging to the cluster) before considering the data points. A higher value means the cluster is larger relative to the others. In our case, we see that the first cluster has the highest proportions of points, then the second cluster, and lastly the third cluster has a very small proportion. 
+
+### Comparative Analysis
+
+- **Capability to Model Complex Structures**:
+  - **GMM**: The Gaussian Mixture Model's ability to account for covariances within each cluster allows it to capture more complex, elliptical cluster shapes. This is particularly advantageous for datasets like wines, where the relationships between features (e.g., alcohol content and phenolic levels) can significantly influence clustering outcomes.
+  - **KMeans**: This algorithm assumes that all clusters are spherical and of similar sizes, which might not adequately represent the underlying distributions if the actual clusters vary in shape or scale.
+
+- **Performance Metrics**:
+  - The high Adjusted Rand Index (ARI) for KMeans suggests that it performs well in aligning with the true classifications of wines, indicating effective clustering. However, the Gaussian Mixture Model, with its detailed probabilistic approach to modeling data distributions (including outlier identification as reflected by the mixing coefficients), may provide deeper insights, especially useful for understanding subtle differences and rare types of wines.
+
+- **Handling of Outliers**:
+  - **GMM**: Demonstrates effective identification and isolation of outliers or rare data points, as evidenced by the very small mixing coefficient for one of the clusters. This feature is critical in datasets where identifying outliers is valuable, such as in wine quality assessment or anomaly detection.
+  - **KMeans**: Less effective at handling outliers, as it does not model probability densities or accommodate varying variances within the data.
+
+### Improvements
+For further improvement to clustering wine type, we could improve on integrating insights from both models, where we can use GMM to parse complex and subtle data patterns and KMeans for a broader overview of classifications. This combined strategy could exploit the strengths of both algorithms, offering a holistic clustering methodology suitable for detailed and nuanced analysis of wine datasets.
+
+
+### Conclusion
+In the context of wine data, characterized by complex relationships between variables, the Gaussian Mixture Model (GMM) potentially offers a more nuanced and informative clustering solution compared to KMeans. Also provided the extensive library in R, it is easier to implemenent KMeans compared to GMM. GMM's detailed probabilistic modeling may uncover subtle distinctions and outlier groups that KMeans might otherwise amalgamate into more generalized clusters. However, KMeans provides robust, straightforward insights that align well with general classifications, as evidenced by the high ARI. 
+
+
+
+
+
+
+
+
+
