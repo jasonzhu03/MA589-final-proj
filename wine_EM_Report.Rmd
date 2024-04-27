@@ -265,9 +265,9 @@ Repeat until the log-likelihood converges:
 
 For each \( i \) in \( 1, \ldots, n \) and each \( j \) in \( 1, \ldots, k \):
 
-\[
+$$
 \gamma_{ij} \leftarrow \frac{\pi_j \mathcal{N}(\mathbf{x}_i \,|\, \boldsymbol{\mu}_j, \boldsymbol{\Sigma}_j)}{\sum_{l=1}^{k} \pi_l \mathcal{N}(\mathbf{x}_i \,|\, \boldsymbol{\mu}_l, \boldsymbol{\Sigma}_l)}
-\]
+$$
 
 **M-step:**
 
@@ -275,20 +275,20 @@ For each \( j \) in \( 1, \ldots, k \):
 
 - Update \( \boldsymbol{\mu}_j \):
 
-\[
+$$
 \boldsymbol{\mu}_j \leftarrow \frac{\sum_{i=1}^{n} \gamma_{ij} \mathbf{x}_i}{\sum_{i=1}^{n} \gamma_{ij}}
-\]
+$$
 
 - Update \( \boldsymbol{\Sigma}_j \):
 
-\[
+$$
 \boldsymbol{\Sigma}_j \leftarrow \frac{\sum_{i=1}^{n} \gamma_{ij} (\mathbf{x}_i - \boldsymbol{\mu}_j)(\mathbf{x}_i - \boldsymbol{\mu}_j)^T}{\sum_{i=1}^{n} \gamma_{ij}}
-\]
+$$
 
 - Update \( \pi_j \):
 
-\[
+$$
 \pi_j \leftarrow \frac{\sum_{i=1}^{n} \gamma_{ij}}{n}
-\]
+$$
 
 The log-likelihood is computed at each iteration and the convergence is checked based on the difference in log-likelihood between consecutive iterations.
