@@ -1,6 +1,6 @@
 ---
 title: "[MA-589] Final Project"
-author: "Wine Statisticians - Eugene Pirono, Lance, Jason Zhu"
+author: "Wine Statisticians - Eugene Pirono, Lance Yoon, Jason Zhu"
 date: "2024-04-21"
 output: github_document
 ---
@@ -182,9 +182,113 @@ Noise and outliers in wine data, such as unusual wines or misrecorded data point
 ## EM Algorithm - Gaussian Mixture Model
 
 ```{r EM_GMM_MODEL}
+# EM Algorithm Function
+EM_GMM <- function(features, k, max_iterations = 100, tolerance = 1e-6) {
+  n <- nrow(features)
+  d <- ncol(features)
+  
+  # Initialize parameters
+  set.seed(589)
+  means <- kmeans(features, centers = k, nstart = 5)$centers
+  covariances <- array(rep(diag(d), k), dim = c(d, d, k))
+  mixing_coefficients <- rep(1/k, k)
+  
+  log_likelihood_old <- -Inf
+  
+  # Main EM loop
+  for (iteration in 1:max_iterations) {
+    # E-step: Calculate responsibilities
+    responsibilities <- matrix(0, nrow = n, ncol = k)
+    for (j in 1:k) {
+      responsibilities[, j] <- mixing_coefficients[j] * dmvnorm(features, mean = means[j, ], sigma = covariances[, , j])
+    }
+    responsibilities <- sweep(responsibilities, 1, rowSums(responsibilities), FUN = "/")
+    
+    # M-step: Update parameters
+    sums_of_responsibilities <- colSums(responsibilities)
+    for (j in 1:k) {
+      means[j, ] <- (t(responsibilities[, j]) %*% features) / sums_of_responsibilities[j]
+      centered <- sweep(features, 1, means[j, ], FUN = "-")
+      covariances[, , j] <- t(centered) %*% (centered * responsibilities[, j]) / sums_of_responsibilities[j]
+    }
+    mixing_coefficients <- sums_of_responsibilities / n
+    
+    # Check for convergence via log likelihood
+    log_likelihood_new <- sum(log(rowSums(responsibilities * mixing_coefficients)))
+    if (abs(log_likelihood_new - log_likelihood_old) < tolerance) {
+      cat("Converged after", iteration, "iterations.\n")
+      break
+    }
+    log_likelihood_old = log_likelihood_new
+  }
+  
+  # Return the final model parameters
+  list(means = means, covariances = covariances, mixing_coefficients = mixing_coefficients)
+}
 
-
-
+# Example Usage
+features <- as.matrix(df_scaled[, -ncol(df_scaled)])  # Your data here
+features
+result <- EM_GMM(features, k = 3)
+print(result)
 ```
+## Expectation-Maximization Algorithm for GMM
 
+The Expectation-Maximization (EM) algorithm is a statistical method for finding maximum likelihood estimates in models with latent variables. In the context of clustering, the EM algorithm for Gaussian Mixture Models (GMMs) can be used to identify clusters that are not necessarily spherical, as is the case with K-Means.
 
+### The EM Algorithm for GMM
+
+The EM algorithm involves two steps: the Expectation step (E-step) and the Maximization step (M-step). These steps are iterated until convergence.
+
+#### Mathematical Notation
+
+Let's denote:
+
+- \( \mathbf{X} \) as the dataset with \( n \) observations and \( d \) features.
+- \( k \) as the number of clusters.
+- \( \boldsymbol{\mu}_j \) as the mean of the \( j \)-th cluster.
+- \( \boldsymbol{\Sigma}_j \) as the covariance matrix of the \( j \)-th cluster.
+- \( \pi_j \) as the mixing coefficient for the \( j \)-th cluster.
+- \( \gamma_{ij} \) as the responsibility, which is the probability that the \( i \)-th observation belongs to the \( j \)-th cluster.
+
+The algorithm proceeds as follows:
+
+**Initialization:**
+
+1. Initialize \( \boldsymbol{\mu}_j \), \( \boldsymbol{\Sigma}_j \), and \( \pi_j \) with reasonable values. In this case, K-Means is used for initialization.
+
+**EM Steps:**
+
+Repeat until the log-likelihood converges:
+
+**E-step:**
+
+For each \( i \) in \( 1, \ldots, n \) and each \( j \) in \( 1, \ldots, k \):
+
+\[
+\gamma_{ij} \leftarrow \frac{\pi_j \mathcal{N}(\mathbf{x}_i \,|\, \boldsymbol{\mu}_j, \boldsymbol{\Sigma}_j)}{\sum_{l=1}^{k} \pi_l \mathcal{N}(\mathbf{x}_i \,|\, \boldsymbol{\mu}_l, \boldsymbol{\Sigma}_l)}
+\]
+
+**M-step:**
+
+For each \( j \) in \( 1, \ldots, k \):
+
+- Update \( \boldsymbol{\mu}_j \):
+
+\[
+\boldsymbol{\mu}_j \leftarrow \frac{\sum_{i=1}^{n} \gamma_{ij} \mathbf{x}_i}{\sum_{i=1}^{n} \gamma_{ij}}
+\]
+
+- Update \( \boldsymbol{\Sigma}_j \):
+
+\[
+\boldsymbol{\Sigma}_j \leftarrow \frac{\sum_{i=1}^{n} \gamma_{ij} (\mathbf{x}_i - \boldsymbol{\mu}_j)(\mathbf{x}_i - \boldsymbol{\mu}_j)^T}{\sum_{i=1}^{n} \gamma_{ij}}
+\]
+
+- Update \( \pi_j \):
+
+\[
+\pi_j \leftarrow \frac{\sum_{i=1}^{n} \gamma_{ij}}{n}
+\]
+
+The log-likelihood is computed at each iteration and the convergence is checked based on the difference in log-likelihood between consecutive iterations.
