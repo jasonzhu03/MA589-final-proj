@@ -343,88 +343,112 @@ impacting the clarity of cluster boundaries.
 ## EM Algorithm - Gaussian Mixture Model
 
 ``` r
-# EM Algorithm Function
 EM_GMM <- function(features, k, max_iterations = 100, tolerance = 1e-6) {
-  n <- nrow(features)
-  d <- ncol(features)
-  
-  # Initialize parameters
-  set.seed(589)
-  means <- kmeans(features, centers = k, nstart = 5)$centers
-  covariances <- array(rep(diag(d), k), dim = c(d, d, k))
-  mixing_coefficients <- rep(1/k, k)
-  
-  log_likelihood_old <- -Inf
-  
-  # Main EM loop
-  for (iteration in 1:max_iterations) {
-    # E-step: Calculate responsibilities
-    responsibilities <- matrix(0, nrow = n, ncol = k)
+    library(mvtnorm)  # For dmvnorm
+    n <- nrow(features)
+    d <- ncol(features)
+
+    # Initialize parameters
+    set.seed(123)  # Fixed seed for reproducibility
+    means <- kmeans(features, centers = k, nstart = 5)$centers
+    covariances <- array(rep(0, d^2 * k), dim = c(d, d, k))
     for (j in 1:k) {
-      responsibilities[, j] <- mixing_coefficients[j] * dmvnorm(features, mean = means[j, ], sigma = covariances[, , j])
+      covariances[, , j] <- diag(runif(d, 0.1, 1))  # Initialize with small random positive values to ensure positive definiteness
     }
-    responsibilities <- sweep(responsibilities, 1, rowSums(responsibilities), FUN = "/")
-    
-    # M-step: Update parameters
-    sums_of_responsibilities <- colSums(responsibilities)
-    for (j in 1:k) {
-      means[j, ] <- (t(responsibilities[, j]) %*% features) / sums_of_responsibilities[j]
-      centered <- sweep(features, 1, means[j, ], FUN = "-")
-      covariances[, , j] <- t(centered) %*% (centered * responsibilities[, j]) / sums_of_responsibilities[j]
+    mixing_coefficients <- rep(1/k, k)
+
+    log_likelihood_old <- -Inf
+
+    # Main EM loop
+    for (iteration in 1:max_iterations) {
+        # E-step: Calculate responsibilities
+        responsibilities <- matrix(0, nrow = n, ncol = k)
+        for (j in 1:k) {
+            # Ensure covariances are positive definite
+            sigma_j <- covariances[, , j]
+            if (is.na(determinant(matrix(sigma_j, d, d))$modulus)) {
+              sigma_j <- diag(diag(sigma_j))  # Fallback to diagonal if not positive definite
+            }
+            responsibilities[, j] <- mixing_coefficients[j] * dmvnorm(features, mean = means[j, ], sigma = sigma_j, log = FALSE)
+        }
+        sum_responsibilities <- rowSums(responsibilities)
+        responsibilities <- sweep(responsibilities, 1, sum_responsibilities, FUN = "/")
+
+        # M-step: Update parameters
+        sums_of_responsibilities <- colSums(responsibilities)
+        for (j in 1:k) {
+            means[j, ] <- (t(responsibilities[, j]) %*% features) / sums_of_responsibilities[j]
+            centered <- sweep(features, 1, means[j, ], FUN = "-")
+            cov_temp <- t(centered) %*% (centered * responsibilities[, j])
+            covariances[, , j] <- cov_temp / sums_of_responsibilities[j]
+            # Regularize covariance to avoid singular matrix
+            covariances[, , j] <- covariances[, , j] + diag(1e-6, d)
+        }
+        mixing_coefficients <- sums_of_responsibilities / n
+
+        # Check for convergence via log likelihood
+        safe_log_sum <- log(pmax(rowSums(responsibilities * mixing_coefficients), .Machine$double.eps))
+        log_likelihood_new <- sum(safe_log_sum)
+        if (is.finite(log_likelihood_new) && abs(log_likelihood_new - log_likelihood_old) < tolerance) {
+            cat("Converged after", iteration, "iterations.\n")
+            break
+        }
+        log_likelihood_old = log_likelihood_new
     }
-    mixing_coefficients <- sums_of_responsibilities / n
-    
-    # Check for convergence via log likelihood
-    log_likelihood_new <- sum(log(rowSums(responsibilities * mixing_coefficients)))
-    if (abs(log_likelihood_new - log_likelihood_old) < tolerance) {
-      cat("Converged after", iteration, "iterations.\n")
-      break
-    }
-    log_likelihood_old = log_likelihood_new
-  }
-  
-  list(means = means, covariances = covariances, mixing_coefficients = mixing_coefficients)
+
+    # Return the final model parameters
+    list(means = means, covariances = covariances, mixing_coefficients = mixing_coefficients, log_likelihood =log_likelihood_new )
 }
 
-features <- as.matrix(df_scaled[, -ncol(df_scaled)])
-result <- EM_GMM(features, k = 3)
-print(result)
+# Example Usage
+set.seed(589)
+features <- as.matrix(df_scaled[, -1])  
+result_test <- EM_GMM(features, k = 3)
+```
+
+    ## Converged after 52 iterations.
+
+``` r
+print(result_test)
 ```
 
     ## $means
-    ##      Class     Alcohol         Hue TotalPhenols
-    ## 1 1.896862 -0.08501828  0.07676566    0.1042218
-    ## 2 2.058845  0.24816352 -0.22402891   -0.3041360
-    ## 3 2.493043 -0.14046875 -0.90672234   -1.6732408
+    ##      Alcohol        Hue TotalPhenols ColorIntensity
+    ## 1  1.6498377 -1.6950903    0.8067217      3.4257682
+    ## 2  0.8698721  0.4864996    0.8117743      0.1405742
+    ## 3 -0.4854980 -0.2487278   -0.4466886     -0.1059732
     ## 
     ## $covariances
     ## , , 1
     ## 
-    ##            [,1]        [,2]        [,3]       [,4]
-    ## [1,]  3.1077867 -1.25666540 -0.27004065 -1.1646002
-    ## [2,] -1.2566654  1.98239135  0.03817078  1.0280340
-    ## [3,] -0.2700407  0.03817078  1.91537073  0.4290612
-    ## [4,] -1.1646002  1.02803403  0.42906125  1.6865855
+    ##            [,1]      [,2]  [,3]      [,4]
+    ## [1,]  0.7108455 -2.820162 0e+00  1.497315
+    ## [2,] -2.8201622 11.188544 0e+00 -5.940360
+    ## [3,]  0.0000000  0.000000 1e-06  0.000000
+    ## [4,]  1.4973154 -5.940360 0e+00  3.153930
     ## 
     ## , , 2
     ## 
-    ##            [,1]      [,2]       [,3]       [,4]
-    ## [1,]  4.3948103 -1.053043 -0.9124872 -2.3967513
-    ## [2,] -1.0530434  1.644567 -0.3915240  1.6315225
-    ## [3,] -0.9124872 -0.391524  2.2300536  0.5426161
-    ## [4,] -2.3967513  1.631523  0.5426161  2.4510925
+    ##            [,1]        [,2]        [,3]       [,4]
+    ## [1,] 0.52760431  0.03080811  0.31281381 0.08608275
+    ## [2,] 0.03080811  0.38879124 -0.04945426 0.14056822
+    ## [3,] 0.31281381 -0.04945426  0.47834612 0.17581505
+    ## [4,] 0.08608275  0.14056822  0.17581505 0.64008709
     ## 
     ## , , 3
     ## 
-    ##             [,1]       [,2]       [,3]        [,4]
-    ## [1,]  11.8083542 -8.5807760 -0.3455579 -14.0445718
-    ## [2,]  -8.5807760  7.4906476 -0.5150423  11.1505339
-    ## [3,]  -0.3455579 -0.5150423  0.4777335  -0.1656422
-    ## [4,] -14.0445718 11.1505339 -0.1656422  17.4153512
+    ##            [,1]       [,2]       [,3]       [,4]
+    ## [1,]  0.7155218 -0.4656196 -0.2290646  0.5577255
+    ## [2,] -0.4656196  1.1678479  0.3726506 -0.7966809
+    ## [3,] -0.2290646  0.3726506  0.8060285 -0.3649201
+    ## [4,]  0.5577255 -0.7966809 -0.3649201  1.2974916
     ## 
     ## 
     ## $mixing_coefficients
-    ## [1] 7.448160e-01 2.551727e-01 1.127947e-05
+    ## [1] 0.005617978 0.349352359 0.645029663
+    ## 
+    ## $log_likelihood
+    ## [1] -351.3548
 
 ## Expectation-Maximization Algorithm for GMM
 
@@ -499,25 +523,94 @@ The log-likelihood is computed at each iteration and the convergence is
 checked based on the difference in log-likelihood between consecutive
 iterations.
 
-### EM-GMM Result Interpretation
+## EM Algorithm Results and Interpretation
 
-- The `means` represent the centroids of the Gaussian Distributions,
-  assumed for each 3 clusters we have. For example, the first cluster
-  has negative values for alcohol, but positive values for `Hue` and
-  `TotalPhenols`. So this suggests that wines in this cluster tend to
-  have lower alcohol levels but higher hue and total phenols.
-- The `covariances` matrices represent the shape of the cluster in the
-  feature space. Unlike K-Means which assumes spherical clusters, EM
-  allows for elliptical shapes. For example, the high covariances, 11.15
-  and 17.4 implies that data points are spread out along these features.
-- The `mixing_coefficients` represent the relative sizes of each cluster
-  (In terms of the probability of a point belonging to the cluster)
-  before considering the data points. A higher value means the cluster
-  is larger relative to the others. In our case, we see that the first
-  cluster has the highest proportions of points, then the second
-  cluster, and lastly the third cluster has a very small proportion.
+The EM algorithm has successfully converged after 52 iterations,
+providing the following parameters for a Gaussian Mixture Model fitted
+to the wine dataset.
 
-### Comparative Analysis
+### Cluster Centers (Means)
+
+The model identifies three clusters with the following characteristics
+based on the mean values of each feature:
+
+- **Cluster 1:**
+  - **Alcohol:** High (`1.6498377`), suggesting wines with a strong
+    alcohol presence.
+  - **Hue:** Very low (`-1.6950903`), possibly indicating older wines or
+    specific types that lack vibrant color.
+  - **Total Phenols:** Moderate (`0.8067217`), indicating an average
+    phenolic content.
+  - **Color Intensity:** Very high (`3.4257682`), characteristic of
+    wines with rich, intense colors.
+- **Cluster 2:**
+  - **Alcohol:** Moderate (`0.8698721`), representing average alcoholic
+    content.
+  - **Hue:** Positive (`0.4864996`), suggesting reasonably vibrant
+    wines.
+  - **Total Phenols:** Slightly above average (`0.8117743`), indicative
+    of a good level of antioxidants.
+  - **Color Intensity:** Low (`0.1405742`), pointing to lighter color
+    wines.
+- **Cluster 3:**
+  - **Alcohol:** Low (`-0.4854980`), characteristic of lighter wines.
+  - **Hue:** Slightly negative (`-0.2487278`), indicating less vibrant
+    hues.
+  - **Total Phenols:** Low (`-0.4466886`), suggesting lower antioxidant
+    properties.
+  - **Color Intensity:** Slightly below average (`-0.1059732`),
+    indicating less color depth.
+
+### Covariance Matrices
+
+The covariance matrices for each cluster show the variability and
+correlation of features within each cluster:
+
+- **Cluster 1** shows significant variability, particularly for `Hue`,
+  and strong negative correlations between `Alcohol` and `Hue`.
+- **Cluster 2** displays smaller variance and minor correlations,
+  suggesting independent variations among features.
+- **Cluster 3** has similar traits to Cluster 2 but with some noticeable
+  negative correlations, especially between `Hue` and `Color Intensity`.
+
+``` r
+library(ggplot2)
+mixing_coefficients <- data.frame(
+  Cluster = 1:length(result_test$mixing_coefficients),
+  Coefficient = result_test$mixing_coefficients
+)
+
+p <- ggplot(mixing_coefficients, aes(x = factor(Cluster), y = Coefficient, fill = factor(Cluster))) +
+  geom_bar(stat = "identity") +
+  labs(title = "Mixing Coefficients for Each Cluster",
+       x = "Cluster",
+       y = "Coefficient") +
+  scale_fill_discrete(name = "Cluster") +
+  theme_minimal()
+
+print(p)
+```
+
+![](wine_EM_Report_files/figure-gfm/Mixing-coefficients-1.png)<!-- -->
+
+### Mixing Coefficients
+
+The proportions of the dataset represented by each cluster are:
+
+- **Cluster 1:** Very small (`0.56%`), possibly outliers or unique
+  types.
+- **Cluster 2:** Significant (`34.93%`), likely representing a common
+  type of wine.
+- **Cluster 3:** The majority (`64.50%`), indicating the most typical
+  wines in the dataset.
+
+### Log Likelihood
+
+The log likelihood of the model is `-351.3548`, which quantifies the
+model’s fit to the data. Higher values (closer to zero) would indicate a
+better fit, where it is hard to interpret our log-likelihood.
+
+## Comparative Analysis
 
 - **Capability to Model Complex Structures**:
   - **GMM**: The Gaussian Mixture Model’s ability to account for
@@ -548,7 +641,7 @@ iterations.
     model probability densities or accommodate varying variances within
     the data.
 
-### Improvements
+## Improvements
 
 For further improvement to clustering wine type, we could improve on
 integrating insights from both models, where we can use GMM to parse
@@ -557,7 +650,7 @@ classifications. This combined strategy could exploit the strengths of
 both algorithms, offering a holistic clustering methodology suitable for
 detailed and nuanced analysis of wine datasets.
 
-### Conclusion
+## Conclusion
 
 In the context of wine data, characterized by complex relationships
 between variables, the Gaussian Mixture Model (GMM) potentially offers a
